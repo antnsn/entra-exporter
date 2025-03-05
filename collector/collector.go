@@ -1,10 +1,13 @@
 package collector
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	mgraph "github.com/microsoftgraph/msgraph-sdk-go"
 	graphauth "github.com/microsoft/kiota-authentication-azure-go"
@@ -87,14 +90,54 @@ func (c *BaseCollector) GetGraphClient(tenantID string) (*mgraph.GraphServiceCli
 
 	c.logger.Debugf("Creating new Graph client for tenant: %s", tenantID)
 
+	// Check if environment variables are set
+	azureClientID := os.Getenv("AZURE_CLIENT_ID")
+	azureClientSecret := os.Getenv("AZURE_CLIENT_SECRET")
+	if tenantID == "" {
+		// If tenant is empty, use the one from the environment
+		tenantID = os.Getenv("AZURE_TENANT_ID")
+		c.logger.Debugf("Using tenant ID from environment: %s", tenantID)
+	}
+
+	// Add more detailed logging about authentication method
+	if azureClientID != "" && azureClientSecret != "" {
+		c.logger.Debugf("Using client credentials flow for authentication (AZURE_CLIENT_ID and AZURE_CLIENT_SECRET)")
+	} else if azureClientID != "" {
+		c.logger.Debugf("Using client ID without secret (AZURE_CLIENT_ID only)")
+	} else {
+		c.logger.Debugf("Using default Azure credential chain (managed identity or other method)")
+	}
+
 	// Create a credential using the default Azure credential chain
-	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
-		TenantID: tenantID,
-	})
+	credOptions := &azidentity.DefaultAzureCredentialOptions{}
+	if tenantID != "" {
+		credOptions.TenantID = tenantID
+	}
+	
+	cred, err := azidentity.NewDefaultAzureCredential(credOptions)
 	if err != nil {
 		c.logger.Errorf("Failed to create Azure credential: %v", err)
+		c.logger.Debug("Authentication error details: Check if AZURE_TENANT_ID, AZURE_CLIENT_ID, and AZURE_CLIENT_SECRET environment variables are set correctly")
 		return nil, fmt.Errorf("failed to create credential: %v", err)
 	}
+
+	// Try to validate the credential by getting a token
+	c.logger.Debug("Validating Azure credential by requesting a token")
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	
+	// The Microsoft Graph scope
+	scopes := []string{"https://graph.microsoft.com/.default"}
+	tokenRequestOptions := policy.TokenRequestOptions{
+		Scopes: scopes,
+	}
+	_, err = cred.GetToken(ctx, tokenRequestOptions)
+	if err != nil {
+		c.logger.Errorf("Failed to validate Azure credential: %v", err)
+		c.logger.Debug("Token acquisition failed: This usually indicates incorrect credentials or insufficient permissions")
+		return nil, fmt.Errorf("failed to validate credential: %v", err)
+	}
+	c.logger.Debug("Successfully acquired authentication token")
 
 	// Create an auth provider using the credential
 	authProvider, err := graphauth.NewAzureIdentityAuthenticationProvider(cred)
@@ -119,15 +162,25 @@ func (c *BaseCollector) GetGraphClient(tenantID string) (*mgraph.GraphServiceCli
 	return client, nil
 }
 
-// GetTenants returns the list of tenants to scrape
+// GetTenants returns a list of tenants from the config
 func (c *BaseCollector) GetTenants() []string {
-	// If tenants are explicitly configured, use them
-	if len(c.config.Azure.Tenants) > 0 {
-		return c.config.Azure.Tenants
+	tenants := c.config.Azure.Tenants
+	
+	// If no tenants are specified, use the one from the environment
+	if len(tenants) == 0 {
+		envTenant := os.Getenv("AZURE_TENANT_ID")
+		if envTenant != "" {
+			c.logger.Debugf("No tenants specified in config, using tenant from environment: %s", envTenant)
+			tenants = []string{envTenant}
+		} else {
+			c.logger.Warn("No tenant IDs specified in config or environment variables. Authentication may fail or use default tenant.")
+			// Adding empty string for default tenant in Azure SDK
+			tenants = []string{""}
+		}
 	}
-
-	// Otherwise, use the default tenant from environment
-	return []string{""}
+	
+	c.logger.Debugf("Using tenants: %v", tenants)
+	return tenants
 }
 
 // Describe implements prometheus.Collector
