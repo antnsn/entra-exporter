@@ -1,0 +1,10 @@
+FROM gcr.io/distroless/static:nonroot
+
+COPY entra-exporter /entra-exporter
+
+# Use non-root user for better security
+USER nonroot:nonroot
+
+EXPOSE 8080
+
+ENTRYPOINT ["/entra-exporter"]
