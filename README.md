@@ -1,6 +1,7 @@
-# Entra ID Exporter
+# Entra ID Exporter for Prometheus
 
 Prometheus exporter for Microsoft Entra ID (formerly Azure AD) metrics, such as:
+
 - Number of users
 - Number of devices
 - Application registrations
@@ -39,10 +40,13 @@ Help Options:
 For Azure API authentication (using ENV vars) see [Azure SDK for Go Authentication](https://docs.microsoft.com/en-us/azure/developer/go/azure-sdk-authentication)
 
 ## Config file
+
 See [example.yaml](example.yaml) for a sample configuration.
 
 ## Azure Permissions
+
 This exporter needs the following Microsoft Graph API permissions:
+
 - `User.Read.All` - For reading user information
 - `Device.Read.All` - For reading device information
 - `Application.Read.All` - For reading application information
@@ -69,9 +73,11 @@ This exporter needs the following Microsoft Graph API permissions:
 ## Development
 
 ### Requirements
+
 - Go >= 1.21
 
 ### Building
+
 ```
 make build
 ```
