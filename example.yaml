@@ -1,0 +1,52 @@
+---
+
+# Optional: Azure configuration
+azure:
+  # List of tenant IDs to be scraped
+  # If not specified, will use the tenant ID from authentication
+  # tenants: []
+
+collectors:
+  # General directory statistics
+  general:
+    # How often to scrape (not defined or 0 = disabled)
+    scrapeTime: 5m
+
+  # User metrics
+  users:
+    scrapeTime: 15m
+    # Optional filter query for users
+    # See: https://learn.microsoft.com/en-us/graph/filter-query-parameter
+    filter: ""
+
+  # Device metrics
+  devices:
+    scrapeTime: 15m
+    # Optional filter query for devices
+    filter: ""
+
+  # Application metrics
+  applications:
+    scrapeTime: 15m
+    # Optional filter query for applications
+    filter: ""
+
+  # Service principal metrics
+  servicePrincipals:
+    scrapeTime: 15m
+    # Optional filter query for service principals
+    filter: ""
+
+  # Group metrics
+  groups:
+    scrapeTime: 15m
+    # Optional filter query for groups
+    filter: ""
+
+  # Conditional access policy metrics
+  conditionalAccessPolicies:
+    scrapeTime: 15m
+
+  # Directory role metrics
+  directoryRoles:
+    scrapeTime: 15m
