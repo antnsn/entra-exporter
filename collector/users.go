@@ -150,6 +150,8 @@ func (c *UsersCollector) collect() {
 		result, err := client.Users().Get(context.Background(), &reqConfig)
 		if err != nil {
 			c.logger.Errorf("Failed to get users for tenant %s: %v", tenantID, err)
+			c.logger.Debugf("API request details for users: tenantID=%s, filter=%s", 
+				tenantID, c.config.Collector.Users.Filter)
 			c.scrapeErrors.WithLabelValues(tenantID).Inc()
 			continue
 		}
@@ -157,6 +159,9 @@ func (c *UsersCollector) collect() {
 		// Store the first page of users
 		if result.GetValue() != nil {
 			usersList = append(usersList, result.GetValue()...)
+			c.logger.Debugf("Retrieved %d users in first page for tenant %s", len(result.GetValue()), tenantID)
+		} else {
+			c.logger.Warnf("No users returned in API response for tenant %s", tenantID)
 		}
 
 		// Handle pagination manually

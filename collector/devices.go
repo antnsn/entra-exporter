@@ -159,6 +159,8 @@ func (c *DevicesCollector) collect() {
 		client, err := c.GetGraphClient(tenantID)
 		if err != nil {
 			c.logger.Errorf("Failed to get Graph client for tenant %s: %v", tenantID, err)
+			c.logger.Debugf("API request details for devices: tenantID=%s, filter=%s", 
+				tenantID, c.config.Collector.Devices.Filter)
 			c.scrapeErrors.WithLabelValues(tenantID).Inc()
 			continue
 		}
@@ -189,6 +191,8 @@ func (c *DevicesCollector) collect() {
 		result, err := client.Devices().Get(context.Background(), &reqConfig)
 		if err != nil {
 			c.logger.Errorf("Failed to get devices for tenant %s: %v", tenantID, err)
+			c.logger.Debugf("API request details for devices: tenantID=%s, filter=%s", 
+				tenantID, c.config.Collector.Devices.Filter)
 			c.scrapeErrors.WithLabelValues(tenantID).Inc()
 			continue
 		}
@@ -196,6 +200,9 @@ func (c *DevicesCollector) collect() {
 		// Store the first page of devices
 		if result.GetValue() != nil {
 			devicesList = append(devicesList, result.GetValue()...)
+			c.logger.Debugf("Retrieved %d devices in first page for tenant %s", len(result.GetValue()), tenantID)
+		} else {
+			c.logger.Warnf("No devices returned in API response for tenant %s", tenantID)
 		}
 
 		// Handle pagination manually

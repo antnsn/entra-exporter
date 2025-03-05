@@ -85,25 +85,32 @@ func (c *BaseCollector) GetGraphClient(tenantID string) (*mgraph.GraphServiceCli
 		return client, nil
 	}
 
+	c.logger.Debugf("Creating new Graph client for tenant: %s", tenantID)
+
 	// Create a credential using the default Azure credential chain
 	cred, err := azidentity.NewDefaultAzureCredential(&azidentity.DefaultAzureCredentialOptions{
 		TenantID: tenantID,
 	})
 	if err != nil {
+		c.logger.Errorf("Failed to create Azure credential: %v", err)
 		return nil, fmt.Errorf("failed to create credential: %v", err)
 	}
 
 	// Create an auth provider using the credential
 	authProvider, err := graphauth.NewAzureIdentityAuthenticationProvider(cred)
 	if err != nil {
+		c.logger.Errorf("Failed to create auth provider: %v", err)
 		return nil, fmt.Errorf("failed to create auth provider: %v", err)
 	}
 
 	// Create a request adapter
 	adapter, err := mgraph.NewGraphRequestAdapter(authProvider)
 	if err != nil {
+		c.logger.Errorf("Failed to create adapter: %v", err)
 		return nil, fmt.Errorf("failed to create adapter: %v", err)
 	}
+
+	c.logger.Debugf("Successfully created Graph client for tenant: %s", tenantID)
 
 	// Create a Graph client
 	client := mgraph.NewGraphServiceClient(adapter)
