@@ -152,7 +152,10 @@ func (c *DevicesCollector) collect() {
 	c.Lock()
 	defer c.Unlock()
 
-	for _, tenantID := range c.GetTenants() {
+	tenants := c.GetTenants()
+	c.logger.Debugf("Starting devices collection for %d tenants", len(tenants))
+
+	for _, tenantID := range tenants {
 		start := time.Now()
 		c.logger.Debugf("Collecting devices for tenant %s", tenantID)
 
@@ -167,6 +170,8 @@ func (c *DevicesCollector) collect() {
 		// Set up pagination
 		var devicesList []models.Deviceable
 		pageSize := int32(100)
+		c.logger.Debugf("Using page size %d for devices collection", pageSize)
+
 		query := devices.DevicesRequestBuilderGetQueryParameters{
 			Top: &pageSize,
 			// Add select to limit the properties returned for each device
@@ -182,6 +187,7 @@ func (c *DevicesCollector) collect() {
 		}
 
 		// Get the first page
+		c.logger.Debugf("Fetching first page of devices for tenant %s", tenantID)
 		result, err := client.Devices().Get(context.Background(), &reqConfig)
 		if err != nil {
 			c.logger.Errorf("Failed to get devices for tenant %s: %v", tenantID, err)
@@ -192,14 +198,19 @@ func (c *DevicesCollector) collect() {
 
 		// Store the first page of devices
 		if result.GetValue() != nil {
-			devicesList = append(devicesList, result.GetValue()...)
-			c.logger.Debugf("Retrieved %d devices in first page for tenant %s", len(result.GetValue()), tenantID)
+			pageDevices := result.GetValue()
+			devicesList = append(devicesList, pageDevices...)
+			c.logger.Debugf("Retrieved %d devices in first page for tenant %s", len(pageDevices), tenantID)
 		} else {
 			c.logger.Warnf("No devices returned in API response for tenant %s", tenantID)
 		}
 
 		// Handle pagination manually
+		pageCount := 1
 		for result.GetOdataNextLink() != nil && len(*result.GetOdataNextLink()) > 0 {
+			pageCount++
+			c.logger.Debugf("Fetching page %d of devices for tenant %s", pageCount, tenantID)
+			
 			// Fetch the next page using the nextLink directly
 			var nextReqConfig *devices.DevicesRequestBuilderGetRequestConfiguration
 			result, err = client.Devices().Get(context.Background(), nextReqConfig)
@@ -211,7 +222,11 @@ func (c *DevicesCollector) collect() {
 			
 			// Store this page's devices
 			if result.GetValue() != nil {
-				devicesList = append(devicesList, result.GetValue()...)
+				pageDevices := result.GetValue()
+				devicesList = append(devicesList, pageDevices...)
+				c.logger.Debugf("Retrieved %d devices in page %d for tenant %s", len(pageDevices), pageCount, tenantID)
+			} else {
+				c.logger.Warnf("No devices returned in page %d for tenant %s", pageCount, tenantID)
 			}
 		}
 

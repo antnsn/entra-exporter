@@ -148,11 +148,36 @@ func (c *BaseCollector) Collect(ch chan<- prometheus.Metric) {
 func (c *BaseCollector) StartCacheInvalidator(collect func()) {
 	go func() {
 		c.logger.Infof("Starting cache invalidator for %s collector", c.name)
+		
+		// Recover from panics to keep the application running
+		defer func() {
+			if r := recover(); r != nil {
+				c.logger.Errorf("PANIC in %s collector: %v", c.name, r)
+				// Restart the goroutine after a short delay
+				time.Sleep(5 * time.Second)
+				c.logger.Infof("Restarting cache invalidator for %s collector after panic", c.name)
+				// Restart the cache invalidator
+				c.StartCacheInvalidator(collect)
+			}
+		}()
+
 		for {
-			// Initial collection
-			collect()
+			// Wrap collection in another recover to prevent panics during each collection cycle
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						c.logger.Errorf("PANIC during %s collection: %v", c.name, r)
+					}
+				}()
+				
+				// Run the collection
+				c.logger.Debugf("Starting collection cycle for %s", c.name)
+				collect()
+				c.logger.Debugf("Completed collection cycle for %s", c.name)
+			}()
 
 			// Wait for next scrape
+			c.logger.Debugf("Waiting %s for next %s collection cycle", c.scrapeTime, c.name)
 			time.Sleep(c.scrapeTime)
 		}
 	}()

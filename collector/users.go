@@ -117,13 +117,17 @@ func (c *UsersCollector) collect() {
 	c.Lock()
 	defer c.Unlock()
 
-	for _, tenantID := range c.GetTenants() {
+	tenants := c.GetTenants()
+	c.logger.Debugf("Starting users collection for %d tenants", len(tenants))
+
+	for _, tenantID := range tenants {
 		start := time.Now()
 		c.logger.Debugf("Collecting users for tenant %s", tenantID)
 
 		client, err := c.GetGraphClient(tenantID)
 		if err != nil {
 			c.logger.Errorf("Failed to get Graph client for tenant %s: %v", tenantID, err)
+			c.logger.Debugf("API request details for users: tenantID=%s", tenantID)
 			c.scrapeErrors.WithLabelValues(tenantID).Inc()
 			continue
 		}
@@ -131,22 +135,20 @@ func (c *UsersCollector) collect() {
 		// Set up pagination
 		var usersList []models.Userable
 		pageSize := int32(100)
+		c.logger.Debugf("Using page size %d for users collection", pageSize)
+		
 		query := users.UsersRequestBuilderGetQueryParameters{
 			Top: &pageSize,
 			// Add select to limit the properties returned for each user to reduce API load
 			Select: []string{"id", "userPrincipalName", "displayName", "accountEnabled", "userType", "creationType"},
 		}
 
-		// Optional: add filter if specified in config
-		// if c.config.Collector.Users.Filter != "" {
-		//   query.Filter = &c.config.Collector.Users.Filter
-		// }
-
 		reqConfig := users.UsersRequestBuilderGetRequestConfiguration{
 			QueryParameters: &query,
 		}
 
 		// Get the first page
+		c.logger.Debugf("Fetching first page of users for tenant %s", tenantID)
 		result, err := client.Users().Get(context.Background(), &reqConfig)
 		if err != nil {
 			c.logger.Errorf("Failed to get users for tenant %s: %v", tenantID, err)
@@ -157,14 +159,18 @@ func (c *UsersCollector) collect() {
 
 		// Store the first page of users
 		if result.GetValue() != nil {
-			usersList = append(usersList, result.GetValue()...)
-			c.logger.Debugf("Retrieved %d users in first page for tenant %s", len(result.GetValue()), tenantID)
+			pageUsers := result.GetValue()
+			usersList = append(usersList, pageUsers...)
+			c.logger.Debugf("Retrieved %d users in first page for tenant %s", len(pageUsers), tenantID)
 		} else {
 			c.logger.Warnf("No users returned in API response for tenant %s", tenantID)
 		}
 
 		// Handle pagination manually
+		pageCount := 1
 		for result.GetOdataNextLink() != nil && len(*result.GetOdataNextLink()) > 0 {
+			pageCount++
+			c.logger.Debugf("Fetching page %d of users for tenant %s", pageCount, tenantID)
 			// Fetch the next page using the nextLink directly
 			var nextReqConfig *users.UsersRequestBuilderGetRequestConfiguration
 			result, err = client.Users().Get(context.Background(), nextReqConfig)
@@ -176,7 +182,11 @@ func (c *UsersCollector) collect() {
 			
 			// Store this page's users
 			if result.GetValue() != nil {
-				usersList = append(usersList, result.GetValue()...)
+				pageUsers := result.GetValue()
+				usersList = append(usersList, pageUsers...)
+				c.logger.Debugf("Retrieved %d users in page %d for tenant %s", len(pageUsers), pageCount, tenantID)
+			} else {
+				c.logger.Warnf("No users returned in page %d for tenant %s", pageCount, tenantID)
 			}
 		}
 
