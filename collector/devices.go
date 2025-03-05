@@ -159,8 +159,7 @@ func (c *DevicesCollector) collect() {
 		client, err := c.GetGraphClient(tenantID)
 		if err != nil {
 			c.logger.Errorf("Failed to get Graph client for tenant %s: %v", tenantID, err)
-			c.logger.Debugf("API request details for devices: tenantID=%s, filter=%s", 
-				tenantID, c.config.Collector.Devices.Filter)
+			c.logger.Debugf("API request details for devices: tenantID=%s", tenantID)
 			c.scrapeErrors.WithLabelValues(tenantID).Inc()
 			continue
 		}
@@ -178,11 +177,6 @@ func (c *DevicesCollector) collect() {
 			},
 		}
 
-		// Optional: add filter if specified in config
-		// if c.config.Collector.Devices.Filter != "" {
-		//   query.Filter = &c.config.Collector.Devices.Filter
-		// }
-
 		reqConfig := devices.DevicesRequestBuilderGetRequestConfiguration{
 			QueryParameters: &query,
 		}
@@ -191,8 +185,7 @@ func (c *DevicesCollector) collect() {
 		result, err := client.Devices().Get(context.Background(), &reqConfig)
 		if err != nil {
 			c.logger.Errorf("Failed to get devices for tenant %s: %v", tenantID, err)
-			c.logger.Debugf("API request details for devices: tenantID=%s, filter=%s", 
-				tenantID, c.config.Collector.Devices.Filter)
+			c.logger.Debugf("API request details for devices: tenantID=%s", tenantID)
 			c.scrapeErrors.WithLabelValues(tenantID).Inc()
 			continue
 		}

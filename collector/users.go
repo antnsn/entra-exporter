@@ -150,8 +150,7 @@ func (c *UsersCollector) collect() {
 		result, err := client.Users().Get(context.Background(), &reqConfig)
 		if err != nil {
 			c.logger.Errorf("Failed to get users for tenant %s: %v", tenantID, err)
-			c.logger.Debugf("API request details for users: tenantID=%s, filter=%s", 
-				tenantID, c.config.Collector.Users.Filter)
+			c.logger.Debugf("API request details for users: tenantID=%s", tenantID)
 			c.scrapeErrors.WithLabelValues(tenantID).Inc()
 			continue
 		}
